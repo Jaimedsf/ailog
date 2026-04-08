@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
 
-// The authContext definition ensures typescript understands user and perfil
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || '';
+
 interface AuthContextType {
   user: User | null;
   perfil: string;
@@ -24,6 +25,17 @@ const AuthContext = createContext<AuthContextType>({
   sessionKey: 0
 });
 
+/** Remove all Supabase auth keys from localStorage */
+function clearAuthStorage() {
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch { /* SSR safety */ }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [perfil, setPerfil] = useState<string>('visualizador');
@@ -33,16 +45,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  /** Fetch profile from DB — always resolves, never blocks auth flow */
+  async function loadPerfil(userId: string, fallbackEmail: string) {
+    try {
+      const { data } = await db.from('perfis').select('*').eq('id', userId).single();
+      if (data?.perfil) setPerfil(data.perfil);
+      if (data?.nome) setNome(data.nome);
+      else setNome(fallbackEmail.split('@')[0] || '');
+    } catch {
+      setNome(fallbackEmail.split('@')[0] || '');
+    }
+  }
+
+  // ── Main auth effect ──────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
 
+    // 1) Build version check — new deploy invalidates all sessions
+    try {
+      const storedBuild = localStorage.getItem('seas_build_id');
+      if (BUILD_ID && storedBuild && storedBuild !== BUILD_ID) {
+        clearAuthStorage();
+      }
+      if (BUILD_ID) localStorage.setItem('seas_build_id', BUILD_ID);
+    } catch { /* SSR safety */ }
+
+    // 2) Validate session with the Supabase server (handles token refresh)
+    async function initSession() {
+      try {
+        const { data: { user: validUser }, error } = await db.auth.getUser();
+
+        if (!isMounted) return;
+
+        if (error || !validUser) {
+          clearAuthStorage();
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        setUser(validUser);
+        await loadPerfil(validUser.id, validUser.email || '');
+        if (isMounted) setLoading(false);
+      } catch {
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    }
+
+    // 3) Listen for future auth events (login, logout, token refresh)
     const { data: { subscription } } = db.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      await handleSession(session);
-      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user);
+        await loadPerfil(session.user.id, session.user.email || '');
+        setSessionKey(k => k + 1);
+        setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        clearAuthStorage();
+        setUser(null);
+        setPerfil('visualizador');
+        setNome('');
+      } else if (event === 'TOKEN_REFRESHED') {
         setSessionKey(k => k + 1);
       }
+      // INITIAL_SESSION is ignored — initSession() handles it via getUser()
     });
+
+    initSession();
 
     return () => {
       isMounted = false;
@@ -50,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── Routing guard ─────────────────────────────────────────────────
   useEffect(() => {
     if (!loading) {
       if (!user && pathname !== '/login') {
@@ -60,47 +134,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, loading, pathname, router]);
 
-  const handleSession = async (session: any) => {
-    if (session?.user) {
-      setUser(session.user);
-      setLoading(false);
-
-      let { data: perfilData } = await db.from('perfis').select('*').eq('id', session.user.id).single();
-
-      // If query failed (likely stale token in production), refresh session and retry
-      if (!perfilData) {
-        const { data: refreshed } = await db.auth.refreshSession();
-        if (refreshed?.session) {
-          const retry = await db.from('perfis').select('*').eq('id', session.user.id).single();
-          perfilData = retry.data;
-          // Refresh triggers TOKEN_REFRESHED → sessionKey increments → DataContext reloads
-        }
-      }
-
-      if (perfilData?.perfil) setPerfil(perfilData.perfil);
-      if (perfilData?.nome) setNome(perfilData.nome);
-      else setNome(session.user.email?.split('@')[0] || '');
-    } else {
-      setUser(null);
-      setPerfil('visualizador');
-      setNome('');
-      setLoading(false);
-    }
-  };
-
+  // ── Logout ────────────────────────────────────────────────────────
   const logout = async () => {
     try {
       await db.auth.signOut({ scope: 'local' });
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-    // Force clear state and redirect regardless of signOut result
+    } catch { /* ignore */ }
+    clearAuthStorage();
     setUser(null);
     setPerfil('visualizador');
     setNome('');
     router.push('/login');
   };
 
+  // ── Render ────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="loading-screen" style={{ display: 'flex' }}>
@@ -111,9 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Prevent flash of protected content while redirecting
   if (!user && pathname !== '/login') {
-    return null; 
+    return null;
   }
 
   return (
