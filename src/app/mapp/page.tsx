@@ -2,6 +2,7 @@
 
 import { useData } from '@/components/DataContext';
 import { useAuth } from '@/components/AuthProvider';
+import { Modal } from '@/components/Modal';
 import { fmtNum, getStatusGroup, statusClass, statusLabel, getAndamento, getProgressColor } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { db } from '@/lib/supabase';
@@ -171,27 +172,24 @@ export default function MappPage() {
         })}
       </div>
 
-      {modalOpen && (
-        <div className="modal-overlay open">
-          <div className="modal" style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <div className="modal-title">Novo MAPP</div>
-              <button className="modal-close" onClick={() => setModalOpen(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-grid">
-                <div className="field"><label>Número do MAPP *</label><input value={newNum} onChange={e => setNewNum(e.target.value)} placeholder="Ex: 27, 41..." /></div>
-                <div className="field"><label>Limite (R$)</label><input type="text" value={newValor} onInput={handleCurrencyInput} onChange={e => setNewValor(e.target.value)} placeholder="0,00" /></div>
-                <div className="field full"><label>Descrição</label><input value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Ex: MAPP Principal..." /></div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveMapp}>💾 Salvar</button>
-            </div>
-          </div>
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Novo MAPP"
+        maxWidth="440px"
+        footer={
+          <>
+            <button className="btn" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={saveMapp}>💾 Salvar</button>
+          </>
+        }
+      >
+        <div className="form-grid">
+          <div className="field"><label>Número do MAPP *</label><input value={newNum} onChange={e => setNewNum(e.target.value)} placeholder="Ex: 27, 41..." /></div>
+          <div className="field"><label>Limite (R$)</label><input type="text" value={newValor} onInput={handleCurrencyInput} onChange={e => setNewValor(e.target.value)} placeholder="0,00" /></div>
+          <div className="field full"><label>Descrição</label><input value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Ex: MAPP Principal..." /></div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

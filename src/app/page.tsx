@@ -73,7 +73,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="charts-grid">
+      <div className="charts-grid three-cols">
         <div className="chart-card">
           <div className="chart-title">📈 Obras por Status</div>
           <div className="bar-chart">
@@ -104,9 +104,6 @@ export default function Dashboard() {
             })}
           </div>
         </div>
-      </div>
-
-      <div className="charts-grid">
         <div className="chart-card">
           <div className="chart-title">🏢 Obras por Unidade</div>
           <div className="bar-chart">
@@ -122,36 +119,37 @@ export default function Dashboard() {
             })}
           </div>
         </div>
-        <div className="chart-card">
-          <div className="chart-title">💰 MAPPs</div>
-          <div className="mapp-grid" style={{ marginBottom: 0, gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))' }}>
-            {nums.length === 0 ? (
-              <div style={{ color: 'var(--muted)', fontSize: '12px' }}>Nenhum MAPP cadastrado.</div>
-            ) : nums.map(m => {
-              const obrasM = ob.filter(o => o.mapp === m);
-              const totalV = obrasM.reduce((s, o) => s + (o.valor || 0), 0);
-              const cfg = mp.find(ml => ml.num === m);
-              const limite = cfg?.valor_total || 0;
-              const pct = limite > 0 ? Math.min(totalV / limite * 100, 100) : 0;
-              const color = pct > 90 ? '#f85149' : pct > 70 ? '#f0a500' : '#3fb950';
+      </div>
 
-              return (
-                <div key={m} className="mapp-card" onClick={() => router.push('/mapp')}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span className="mapp-badge">MAPP {m}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{obrasM.length} obras</span>
-                  </div>
-                  <div className="mapp-bar-wrap">
-                    <div className="mapp-bar" style={{ width: `${pct}%`, background: color }}></div>
-                  </div>
-                  <div className="mapp-values">
-                    <div>Obras<br /><span>{fmtNum(totalV)}</span></div>
-                    <div style={{ textAlign: 'right' }}>Limite<br /><span>{limite > 0 ? fmtNum(limite) : '—'}</span></div>
-                  </div>
+      <div className="chart-card" style={{ marginBottom: '20px' }}>
+        <div className="chart-title">💰 MAPPs</div>
+        <div className="mapp-grid" style={{ marginBottom: 0, gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))' }}>
+          {nums.length === 0 ? (
+            <div style={{ color: 'var(--muted)', fontSize: '12px' }}>Nenhum MAPP cadastrado.</div>
+          ) : nums.map(m => {
+            const obrasM = ob.filter(o => o.mapp === m);
+            const totalV = obrasM.reduce((s, o) => s + (o.valor || 0), 0);
+            const cfg = mp.find(ml => ml.num === m);
+            const limite = cfg?.valor_total || 0;
+            const pct = limite > 0 ? Math.min(totalV / limite * 100, 100) : 0;
+            const color = pct > 90 ? '#f85149' : pct > 70 ? '#f0a500' : '#3fb950';
+
+            return (
+              <div key={m} className="mapp-card" onClick={() => router.push('/mapp')}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span className="mapp-badge">MAPP {m}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{obrasM.length} obras</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="mapp-bar-wrap">
+                  <div className="mapp-bar" style={{ width: `${pct}%`, background: color }}></div>
+                </div>
+                <div className="mapp-values">
+                  <div>Obras<br /><span>{fmtNum(totalV)}</span></div>
+                  <div style={{ textAlign: 'right' }}>Limite<br /><span>{limite > 0 ? fmtNum(limite) : '—'}</span></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

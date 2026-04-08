@@ -1,5 +1,6 @@
 import { AuthProvider } from '@/components/AuthProvider';
 import { DataProvider } from '@/components/DataContext';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import { MainLayout } from '@/components/MainLayout';
 import { ReactNode } from 'react';
 import './globals.css';
@@ -18,13 +19,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Source+Sans+3:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet" />
       </head>
       <body>
-        <AuthProvider>
-          <DataProvider>
-            <MainLayout>
-              {children}
-            </MainLayout>
-          </DataProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <DataProvider>
+              <MainLayout>
+                {children}
+              </MainLayout>
+            </DataProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

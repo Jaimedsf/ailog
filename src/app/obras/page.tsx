@@ -65,12 +65,6 @@ export default function ObrasPage() {
   return (
     <div id="section-obras" className="tab-content active" style={{ display: 'block' }}>
       <ObraModal isOpen={modalOpen} onClose={() => setModalOpen(false)} editingId={editingId} />
-      
-      {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
-          <button className="btn btn-primary" onClick={() => { setEditingId(null); setModalOpen(true); }}>＋ Nova Obra</button>
-        </div>
-      )}
 
       {(search || status || mapp || local || empresa) && total > 0 && (
         <div className="filter-result show">
