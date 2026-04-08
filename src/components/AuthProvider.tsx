@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  /** Fetch profile from DB — always resolves, never blocks auth flow */
+  /** Fetch profile — never throws, never blocks auth flow */
   async function loadPerfil(userId: string, fallbackEmail: string) {
     try {
       const { data } = await db.from('perfis').select('*').eq('id', userId).single();
@@ -57,68 +57,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ── Main auth effect ──────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
+    let initialized = false;
 
-    // 1) Build version check — new deploy invalidates all sessions
+    // ── Build version check: new deploy → clear sessions ────────────
     try {
-      const storedBuild = localStorage.getItem('seas_build_id');
-      if (BUILD_ID && storedBuild && storedBuild !== BUILD_ID) {
+      const stored = localStorage.getItem('seas_build_id');
+      if (BUILD_ID && stored && stored !== BUILD_ID) {
         clearAuthStorage();
       }
       if (BUILD_ID) localStorage.setItem('seas_build_id', BUILD_ID);
-    } catch { /* SSR safety */ }
+    } catch {}
 
-    // 2) Validate session with the Supabase server (handles token refresh)
-    async function initSession() {
-      try {
-        const { data: { user: validUser }, error } = await db.auth.getUser();
-
-        if (!isMounted) return;
-
-        if (error || !validUser) {
-          clearAuthStorage();
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        setUser(validUser);
-        await loadPerfil(validUser.id, validUser.email || '');
-        if (isMounted) setLoading(false);
-      } catch {
-        if (isMounted) {
-          setUser(null);
-          setLoading(false);
-        }
-      }
-    }
-
-    // 3) Listen for future auth events (login, logout, token refresh)
+    // ── Single listener for ALL auth events ─────────────────────────
     const { data: { subscription } } = db.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
+      // INITIAL_SESSION — fires immediately from localStorage (no network)
+      if (event === 'INITIAL_SESSION') {
+        if (initialized) return; // guard against React strict mode double-fire
+        initialized = true;
+        if (session?.user) {
+          setUser(session.user);
+          setLoading(false); // unblock UI instantly
+          loadPerfil(session.user.id, session.user.email || ''); // background, no await
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // SIGNED_IN — fresh login, token is guaranteed valid
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        setLoading(false);
         await loadPerfil(session.user.id, session.user.email || '');
         setSessionKey(k => k + 1);
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
+        return;
+      }
+
+      // SIGNED_OUT
+      if (event === 'SIGNED_OUT') {
         clearAuthStorage();
         setUser(null);
         setPerfil('visualizador');
         setNome('');
-      } else if (event === 'TOKEN_REFRESHED') {
-        setSessionKey(k => k + 1);
+        return;
       }
-      // INITIAL_SESSION is ignored — initSession() handles it via getUser()
+
+      // TOKEN_REFRESHED — stale token was renewed, reload perfil + data
+      if (event === 'TOKEN_REFRESHED' && session?.user) {
+        await loadPerfil(session.user.id, session.user.email || '');
+        setSessionKey(k => k + 1);
+        return;
+      }
     });
 
-    initSession();
+    // Safety net: if INITIAL_SESSION never fires, unblock after 3s
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && !initialized) {
+        initialized = true;
+        setLoading(false);
+      }
+    }, 3000);
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
