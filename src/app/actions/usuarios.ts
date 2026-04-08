@@ -43,14 +43,14 @@ export async function inviteUserServer(email: string, senha: string, nome: strin
 
 export async function deleteUserServer(id: string) {
   try {
-    const { error: authError } = await adminAuthClient.auth.admin.deleteUser(id);
-    if (authError) {
-      return { error: authError.message };
-    }
-
     const { error: dbError } = await adminAuthClient.from('perfis').delete().eq('id', id);
     if (dbError) {
       return { error: dbError.message };
+    }
+
+    const { error: authError } = await adminAuthClient.auth.admin.deleteUser(id);
+    if (authError) {
+      return { error: authError.message };
     }
 
     return { success: true };

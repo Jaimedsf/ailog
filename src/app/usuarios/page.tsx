@@ -49,17 +49,27 @@ export default function UsuariosPage() {
     }
   };
 
-  const deleteUser = async (id: string) => {
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+
+  const confirmDeleteUser = (id: string) => {
     if (id === user?.id) { showToast('Não pode se excluir!', '#f85149'); return; }
-    if (!confirm('Excluir este usuário?')) return;
+    setUserToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDeleteUser = async () => {
+    if (!userToDelete) return;
     
-    const res = await deleteUserServer(id);
+    const res = await deleteUserServer(userToDelete);
     if (res.error) {
       showToast('Erro: ' + res.error, '#f85149');
     } else {
       showToast('Excluído com sucesso');
       fetchUsers();
     }
+    setDeleteConfirmOpen(false);
+    setUserToDelete(null);
   };
 
   if (!isAdmin) {
@@ -89,7 +99,7 @@ export default function UsuariosPage() {
               </div>
             </div>
             {u.id !== user?.id && (
-               <button className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => deleteUser(u.id)}>🗑</button>
+               <button className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => confirmDeleteUser(u.id)}>🗑</button>
             )}
           </div>
         ))}
@@ -118,6 +128,23 @@ export default function UsuariosPage() {
               <option value="admin">Administrador (acesso total)</option>
             </select>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title="Confirmar Exclusão"
+        maxWidth="400px"
+        footer={
+          <>
+            <button className="btn" onClick={() => setDeleteConfirmOpen(false)}>Cancelar</button>
+            <button className="btn btn-danger" onClick={executeDeleteUser}>Apenas Excluir</button>
+          </>
+        }
+      >
+        <div style={{ fontSize: '14px', color: 'var(--text)' }}>
+          Tem certeza que deseja excluir permanentemente o acesso deste usuário?
         </div>
       </Modal>
     </div>
